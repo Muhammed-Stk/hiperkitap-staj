@@ -72,10 +72,24 @@
             border: 2px dashed #ddd;
             border-radius: 5px;
             display: flex;
+            flex-direction: column; /* Sonuçların alt alta listelenmesi için eklendi */
             justify-content: center;
             align-items: center;
             color: #888;
             background-color: #fafafa;
+            padding: 10px;
+        }
+
+        /* JavaScript ile eklenecek kitap satırlarının tasarımı */
+        .kitap-satiri {
+            width: 100%;
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            color: #333;
+        }
+        .kitap-satiri:last-child {
+            border-bottom: none;
         }
     </style>
 </head>
@@ -88,16 +102,60 @@
 
         <!-- Arama Kutusu ve Butonu -->
         <div class="search-area">
-            <input type="text" placeholder="Kitap, yazar veya ISBN ara...">
-            <button type="button">Ara</button>
+            <input type="text" id="arama-kutusu" placeholder="Kitap, yazar veya ISBN ara...">
+            <button type="button" id="arama-butonu">Ara</button>
         </div>
 
-        <!-- Boş Sonuç Alanı -->
-        <div class="result-area">
-            <!-- İleride JavaScript ile sonuçlar buraya eklenecek -->
+        <!-- Sonuç Alanı -->
+        <div class="result-area" id="sonuc-alani">
             <p>Arama sonuçları burada görüntülenecek...</p>
         </div>
     </div>
 
+    <!-- API Bağlantısını Yapan JavaScript -->
+    <script>
+        document.getElementById('arama-butonu').addEventListener('click', function() {
+            const sonucAlani = document.getElementById('sonuc-alani');
+            
+            // Butona basılınca önce yükleniyor mesajı gösterelim
+            sonucAlani.innerHTML = '<p>Kitaplar getiriliyor...</p>';
+
+            // Nginx üzerinden FastAPI'ye istek atıyoruz
+            fetch('/api/books')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('API yanıt vermedi');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // İçerideki "yükleniyor" yazısını temizle
+                    sonucAlani.innerHTML = '';
+
+                    // Eğer boş liste dönerse
+                    if (data.length === 0) {
+                        sonucAlani.innerHTML = '<p>Kayıtlı kitap bulunamadı.</p>';
+                        return;
+                    }
+
+                    // Gelen her bir kitap için HTML oluştur ve sonuca ekle
+                    data.forEach(kitap => {
+                        const div = document.createElement('div');
+                        div.className = 'kitap-satiri';
+                        
+                        // FastAPI'nin döndürdüğü özellik isimlerine göre title/author veya isim/yazar kullanabilirsin
+                        const kitapIsmi = kitap.title || kitap.isim || "İsimsiz Kitap";
+                        const yazarIsmi = kitap.author || kitap.yazar || "Bilinmeyen Yazar";
+                        
+                        div.innerHTML = `<strong>${kitapIsmi}</strong> - ${yazarIsmi}`;
+                        sonucAlani.appendChild(div);
+                    });
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                    sonucAlani.innerHTML = '<p style="color:red;">Bağlantı hatası! Nginx ve FastAPI çalışıyor mu?</p>';
+                });
+        });
+    </script>
 </body>
 </html>
