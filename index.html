@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HiperKitap - Arama</title>
+    <title>HiperKitap - Arama ve Asistan</title>
     <style>
         /* CSS (Tasarım) Ayarları */
         body {
@@ -13,8 +13,10 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
         .container {
@@ -24,18 +26,18 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             text-align: center;
             width: 100%;
-            max-width: 600px;
+            max-width: 700px;
         }
 
-        h1 {
+        h1, h2 {
             color: #2c3e50;
             margin-bottom: 10px;
         }
 
-        .search-area {
+        .search-area, .chat-input-area {
             display: flex;
             margin-top: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         input[type="text"] {
@@ -66,95 +68,197 @@
             background-color: #2980b9;
         }
 
-        /* Boş Sonuç Alanı */
-        .result-area {
+        /* Sonuç ve Sohbet Alanı Ortak Stilleri */
+        .result-area, .chat-box {
             min-height: 150px;
+            max-height: 300px;
             border: 2px dashed #ddd;
             border-radius: 5px;
             display: flex;
-            flex-direction: column; /* Sonuçların alt alta listelenmesi için eklendi */
-            justify-content: center;
-            align-items: center;
-            color: #888;
+            flex-direction: column;
             background-color: #fafafa;
             padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 30px;
         }
 
-        /* JavaScript ile eklenecek kitap satırlarının tasarımı */
-        .kitap-satiri {
+        .result-area {
+            align-items: center;
+            justify-content: center;
+            color: #888;
+        }
+
+        .chat-box {
+            align-items: flex-start;
+            justify-content: flex-start;
+            color: #333;
+            text-align: left;
+            border-style: solid; /* Sohbet kutusunu biraz daha farklı gösterelim */
+        }
+
+        .kitap-satiri, .mesaj-satiri {
             width: 100%;
             text-align: left;
             padding: 10px;
             border-bottom: 1px solid #eee;
-            color: #333;
+            box-sizing: border-box;
         }
-        .kitap-satiri:last-child {
+        
+        .kitap-satiri:last-child, .mesaj-satiri:last-child {
             border-bottom: none;
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background: #e0e0e0;
+            margin: 40px 0;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <!-- Başlık -->
+        <!-- BÖLÜM 1: KİTAP ARAMA (XSS Korumalı) -->
         <h1>HiperKitap</h1>
         <p>Aradığınız bilgiye anında ulaşın</p>
 
-        <!-- Arama Kutusu ve Butonu -->
         <div class="search-area">
-            <input type="text" id="arama-kutusu" placeholder="Kitap, yazar veya ISBN ara...">
-            <button type="button" id="arama-butonu">Ara</button>
+            <input type="text" id="arama-kutusu" placeholder="Tüm kitapları getir (şimdilik statik)...">
+            <button type="button" id="arama-butonu">Kitapları Getir</button>
         </div>
 
-        <!-- Sonuç Alanı -->
         <div class="result-area" id="sonuc-alani">
             <p>Arama sonuçları burada görüntülenecek...</p>
         </div>
+
+        <hr>
+
+        <!-- BÖLÜM 2: YAPAY ZEKA ASİSTANI (Gemini) -->
+        <h2>Kitap Asistanı (Yapay Zeka)</h2>
+        <p>Ne okuyacağına karar veremiyor musun? Asistana sor!</p>
+        
+        <div class="chat-box" id="chat-box">
+            <!-- Mesajlar buraya gelecek -->
+        </div>
+
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Bana bir bilim kurgu kitabı öner...">
+            <button type="button" id="chat-butonu">Gönder</button>
+        </div>
     </div>
 
-    <!-- API Bağlantısını Yapan JavaScript -->
+    <!-- GÜVENLİ JAVASCRIPT KODLARI -->
     <script>
+        // --- 1. KİTAP ARAMA İŞLEMİ ---
         document.getElementById('arama-butonu').addEventListener('click', function() {
             const sonucAlani = document.getElementById('sonuc-alani');
             
-            // Butona basılınca önce yükleniyor mesajı gösterelim
-            sonucAlani.innerHTML = '<p>Kitaplar getiriliyor...</p>';
+            // Güvenli mesaj ataması
+            sonucAlani.textContent = 'Kitaplar getiriliyor...';
 
-            // Nginx üzerinden FastAPI'ye istek atıyoruz
             fetch('/api/books')
                 .then(response => {
-                    if (!response.ok) {
-                        throw new Error('API yanıt vermedi');
-                    }
+                    if (!response.ok) throw new Error('API yanıt vermedi');
                     return response.json();
                 })
                 .then(data => {
-                    // İçerideki "yükleniyor" yazısını temizle
-                    sonucAlani.innerHTML = '';
+                    sonucAlani.textContent = ''; // Alanı temizle
 
-                    // Eğer boş liste dönerse
                     if (data.length === 0) {
-                        sonucAlani.innerHTML = '<p>Kayıtlı kitap bulunamadı.</p>';
+                        sonucAlani.textContent = 'Kayıtlı kitap bulunamadı.';
                         return;
                     }
 
-                    // Gelen her bir kitap için HTML oluştur ve sonuca ekle
+                    // XSS KORUMALI VERİ EKLEME
                     data.forEach(kitap => {
-                        const div = document.createElement('div');
-                        div.className = 'kitap-satiri';
-                        
-                        // FastAPI'nin döndürdüğü özellik isimlerine göre title/author veya isim/yazar kullanabilirsin
                         const kitapIsmi = kitap.title || kitap.isim || "İsimsiz Kitap";
                         const yazarIsmi = kitap.author || kitap.yazar || "Bilinmeyen Yazar";
                         
-                        div.innerHTML = `<strong>${kitapIsmi}</strong> - ${yazarIsmi}`;
+                        const div = document.createElement('div');
+                        div.className = 'kitap-satiri';
+                        
+                        // <strong> etiketini güvenli yoldan oluşturuyoruz
+                        const strongEtiketi = document.createElement('strong');
+                        strongEtiketi.textContent = kitapIsmi;
+                        
+                        // Etiketleri ve metinleri div içine monte ediyoruz
+                        div.appendChild(strongEtiketi);
+                        div.appendChild(document.createTextNode(` - ${yazarIsmi}`));
+                        
                         sonucAlani.appendChild(div);
                     });
                 })
                 .catch(error => {
                     console.error('Hata:', error);
-                    sonucAlani.innerHTML = '<p style="color:red;">Bağlantı hatası! Nginx ve FastAPI çalışıyor mu?</p>';
+                    sonucAlani.textContent = 'Bağlantı hatası! Nginx ve FastAPI çalışıyor mu?';
+                    sonucAlani.style.color = 'red';
                 });
+        });
+
+        // --- 2. YAPAY ZEKA SOHBET İŞLEMİ ---
+        document.getElementById('chat-butonu').addEventListener('click', async function() {
+            const inputField = document.getElementById("chat-input");
+            const chatBox = document.getElementById("chat-box");
+            const message = inputField.value.trim();
+
+            if (!message) return;
+
+            // Kullanıcı mesajını güvenli ekleme
+            const userMsgDiv = document.createElement("div");
+            userMsgDiv.className = "mesaj-satiri";
+            const userStrong = document.createElement("strong");
+            userStrong.textContent = "Sen: ";
+            userMsgDiv.appendChild(userStrong);
+            userMsgDiv.appendChild(document.createTextNode(message));
+            
+            chatBox.appendChild(userMsgDiv);
+            inputField.value = "";
+            
+            // Scroll'u en aşağı kaydır
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ mesajMetni: message }) 
+                });
+
+                if (!response.ok) throw new Error('API Hatası');
+
+                const data = await response.json();
+                
+                // Asistan mesajını güvenli ekleme
+                const aiMsgDiv = document.createElement("div");
+                aiMsgDiv.className = "mesaj-satiri";
+                const aiStrong = document.createElement("strong");
+                aiStrong.textContent = "Asistan: ";
+                aiStrong.style.color = "#3498db"; // Asistanı renklendirelim
+                
+                aiMsgDiv.appendChild(aiStrong);
+                aiMsgDiv.appendChild(document.createTextNode(data.cevap));
+                
+                chatBox.appendChild(aiMsgDiv);
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+            } catch (error) {
+                console.error("API Hatası:", error);
+                const errorDiv = document.createElement("div");
+                errorDiv.className = "mesaj-satiri";
+                errorDiv.style.color = "red";
+                errorDiv.textContent = "Bağlantı hatası: Mesaj gönderilemedi.";
+                chatBox.appendChild(errorDiv);
+            }
+        });
+
+        // Sohbet kutusunda "Enter" tuşuna basınca göndermesini sağla
+        document.getElementById('chat-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                document.getElementById('chat-butonu').click();
+            }
         });
     </script>
 </body>
