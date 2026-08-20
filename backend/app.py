@@ -17,7 +17,7 @@ class Mesaj(BaseModel):
 
 
 app = FastAPI()
-es = Elasticsearch("http://hiperkitap-es:9200")
+es = Elasticsearch("http://elasticsearch:9200")
 
 
 kitaplar = [
@@ -56,7 +56,7 @@ def ara(q:str):
         sonuc = es.search(index="kitaplar", query={
             "multi_match": {
                 "query": q,
-                "fields": ["baslik^3", "yazar", "aciklama"],
+                "fields": ["baslik^3", "yazar^2", "aciklama"],
                 "fuzziness": "AUTO"
             }
         })
