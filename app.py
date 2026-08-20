@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from elasticsearch import Elasticsearch
 
 
 load_dotenv()
@@ -16,6 +17,7 @@ class Mesaj(BaseModel):
 
 
 app = FastAPI()
+es = Elasticsearch("http://hiperkitap-es:9200")
 
 
 kitaplar = [
@@ -47,3 +49,21 @@ async def sohbet(mesaj: Mesaj):
         )
     ) 
     return {"cevap": yanit.text}
+
+@app.get('/api/search')
+def ara(q:str):
+    try:
+        sonuc = es.search(index="kitaplar", query={
+            "multi_match": {
+                "query": q,
+                "fields": ["baslik^3", "yazar", "aciklama"],
+                "fuzziness": "AUTO"
+            }
+        })
+    except Exception as e:
+        return {"hata": "Arama sırasında bir hata oluştu.", "detay": str(e)}
+
+    return {
+        "toplam": sonuc["hits"]["total"]["value"],
+        "sonuclar": [hit['_source'] for hit in sonuc['hits']['hits']]
+        }
